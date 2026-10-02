@@ -1,0 +1,47 @@
+name: UI tests on Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ui-tests:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Lint
+        run: python -m ruff check .
+      - name: Run Selenium UI tests
+        run: >-
+          python -m pytest --browser=${{ matrix.browser }} --headless
+          --alluredir=allure-results --junitxml=artifacts/junit.xml
+      - name: Build Allure report
+        if: always()
+        run: npx.cmd --yes allure-commandline@2.46.1 generate allure-results --output allure-report
+      - name: Upload results and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-report-${{ matrix.browser }}
+          path: |
+            allure-results/
+            allure-report/
+            artifacts/junit.xml
+          retention-days: 14
