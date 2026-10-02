@@ -1,0 +1,20 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config --alluredir=allure-results"
+markers = [
+  "positive: supported user workflows",
+  "negative: validation and rejected actions",
+  "calendars: date picker and date form",
+  "modals: simple and form dialogs",
+  "ads: delayed advertisement dialog",
+  "form_fields: mandatory Automation Tools / Message scenario",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["docs/verification/blocked-run"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

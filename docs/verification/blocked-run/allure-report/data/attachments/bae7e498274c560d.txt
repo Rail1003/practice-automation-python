@@ -1,0 +1,139 @@
+request = <SubRequest 'driver' for <Function test_message_from_automation_tools[firefox]>>
+browser_name = 'firefox'
+
+    @pytest.fixture
+    def driver(request: pytest.FixtureRequest, browser_name: str) -> Generator[WebDriver]:
+        allure.dynamic.parameter("browser", browser_name)
+        headless = request.config.getoption("--headless")
+        with allure.step(f"Запустить {browser_name}; headless={headless}"):
+            if browser_name == "chrome":
+                options = webdriver.ChromeOptions()
+                options.page_load_strategy = "normal"
+                options.add_argument("--lang=en-US")
+                if headless:
+                    options.add_argument("--headless=new")
+                if binary := os.getenv("CHROME_BINARY"):
+                    options.binary_location = binary
+                service = ChromeService(executable_path=os.getenv("CHROMEDRIVER_PATH"))
+                instance = webdriver.Chrome(options=options, service=service)
+            else:
+                options = webdriver.FirefoxOptions()
+                options.page_load_strategy = "normal"
+                options.set_preference("intl.accept_languages", "en-US,en")
+                if headless:
+                    options.add_argument("-headless")
+                if binary := os.getenv("FIREFOX_BINARY"):
+                    options.binary_location = binary
+                service = FirefoxService(executable_path=os.getenv("GECKODRIVER_PATH"))
+>               instance = webdriver.Firefox(options=options, service=service)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+conftest.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../.venv/lib/python3.12/site-packages/selenium/webdriver/firefox/webdriver.py:69: in __init__
+    super().__init__(command_executor=executor, options=self.options)
+../.venv/lib/python3.12/site-packages/selenium/webdriver/common/webdriver.py:25: in __init__
+    super().__init__(*args, **kwargs)
+../.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py:296: in __init__
+    self.start_session(capabilities)
+../.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py:401: in start_session
+    response = self.execute(Command.NEW_SESSION, caps)["value"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py:506: in execute
+    self.error_handler.check_response(response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x7f888473aed0>
+response = {'status': 500, 'value': '{"value":{"error":"unknown error","message":"Failed to decode response from marionette","stacktrace":""}}'}
+
+    def check_response(self, response: dict[str, Any]) -> None:
+        """Check that a JSON response from the WebDriver does not have an error.
+    
+        Args:
+            response: The JSON response from the WebDriver server as a dictionary
+                object.
+    
+        Raises:
+            WebDriverException: If the response contains an error message.
+        """
+        status = response.get("status", None)
+        if not status or status == ErrorCode.SUCCESS:
+            return
+        value = None
+        message = response.get("message", "")
+        screen: str = response.get("screen", "")
+        stacktrace = None
+        if isinstance(status, int):
+            value_json = response.get("value", None)
+            if value_json and isinstance(value_json, str):
+                try:
+                    value = json.loads(value_json)
+                    if isinstance(value, dict):
+                        if len(value) == 1:
+                            value = value["value"]
+                        status = value.get("error", None)
+                        if not status:
+                            status = value.get("status", ErrorCode.UNKNOWN_ERROR)
+                            message = value.get("value") or value.get("message")
+                            if not isinstance(message, str):
+                                value = message
+                                message = message.get("message") if isinstance(message, dict) else None
+                        else:
+                            message = value.get("message", None)
+                except ValueError:
+                    pass
+    
+        exception_class: type[WebDriverException]
+        e = ErrorCode()
+        error_codes = [item for item in dir(e) if not item.startswith("__")]
+        for error_code in error_codes:
+            error_info = getattr(ErrorCode, error_code)
+            if isinstance(error_info, list) and status in error_info:
+                exception_class = getattr(ExceptionMapping, error_code, WebDriverException)
+                break
+        else:
+            exception_class = WebDriverException
+    
+        if not value:
+            value = response["value"]
+        if isinstance(value, str):
+            raise exception_class(value)
+        if message == "" and "message" in value:
+            message = value["message"]
+    
+        screen = None  # type: ignore[assignment]
+        if "screen" in value:
+            screen = value["screen"]
+    
+        stacktrace = None
+        st_value = value.get("stackTrace") or value.get("stacktrace")
+        if st_value:
+            if isinstance(st_value, str):
+                stacktrace = st_value.split("\n")
+            else:
+                stacktrace = []
+                try:
+                    for frame in st_value:
+                        line = frame.get("lineNumber", "")
+                        file = frame.get("fileName", "<anonymous>")
+                        if line:
+                            file = f"{file}:{line}"
+                        meth = frame.get("methodName", "<anonymous>")
+                        if "className" in frame:
+                            meth = f"{frame['className']}.{meth}"
+                        msg = "    at %s (%s)"
+                        msg = msg % (meth, file)
+                        stacktrace.append(msg)
+                except TypeError:
+                    pass
+        if exception_class == UnexpectedAlertPresentException:
+            alert_text = None
+            if "data" in value:
+                alert_text = value["data"].get("text")
+            elif "alert" in value:
+                alert_text = value["alert"].get("text")
+            raise exception_class(message, screen, stacktrace, alert_text)
+>       raise exception_class(message, screen, stacktrace)
+E       selenium.common.exceptions.WebDriverException: Message: Failed to decode response from marionette
+
+../.venv/lib/python3.12/site-packages/selenium/webdriver/remote/errorhandler.py:232: WebDriverException

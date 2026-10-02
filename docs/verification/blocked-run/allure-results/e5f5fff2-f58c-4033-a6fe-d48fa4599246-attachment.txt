@@ -1,0 +1,1 @@
+WebDriver не создал сессию. Скриншот недоступен; см. Failure и environment.
